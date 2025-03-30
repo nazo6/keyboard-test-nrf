@@ -7,29 +7,14 @@
   },
   "tasks": [
     {
-      "label": "deploy-right",
+      "label": "deploy usb",
       "type": "shell",
-      "command": "cargo run --release --features right"
+      "command": "cargo run-usb --release"
     },
     {
-      "label": "deploy-left",
+      "label": "deploy probe",
       "type": "shell",
-      "command": "cargo run --release --features left"
-    },
-    {
-      "label": "deploy-left-slave",
-      "type": "shell",
-      "command": "cargo run --release --features left,force-slave"
-    },
-    {
-      "label": "deploy-ble-left-slave",
-      "type": "shell",
-      "command": "cargo run --release --features left,ble-split-slave"
-    },
-    {
-      "label": "deploy-ble-right-master",
-      "type": "shell",
-      "command": "cargo run --release --features right,ble-split-master"
+      "command": "cargo run-probe --release"
     }
   ]
 }

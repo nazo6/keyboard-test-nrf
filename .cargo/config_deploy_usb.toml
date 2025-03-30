@@ -1,0 +1,3 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+linker = "flip-link"
+runner = "uf2deploy deploy -f nrf52840 -p auto"
