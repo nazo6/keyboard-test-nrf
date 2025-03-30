@@ -1,0 +1,81 @@
+cargo-features = ["profile-rustflags"]
+
+[package]
+name = "negl-nrf52840"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rktk-drivers-nrf = { version = "0.1.0", features = [
+  "softdevice-ble",
+  "nightly",
+] }
+rktk-drivers-common = { version = "0.1.0" }
+rktk = { version = "0.1.0" }
+rktk-log = { version = "0.1.0" }
+
+embassy-embedded-hal = "0.3.0"
+embassy-time = "0.4.0"
+embassy-executor = { version = "0.7.0", features = [
+  "arch-cortex-m",
+  "executor-thread",
+  "executor-interrupt",
+  "nightly",
+] }
+embassy-nrf = { version = "0.3.0", features = [
+  "gpiote",
+  "time-driver-rtc1",
+  "nrf52840",
+  "nfc-pins-as-gpio",
+] }
+embassy-sync = { version = "0.6.0" }
+nrf-softdevice = { version = "0.1.0", git = "https://github.com/embassy-rs/nrf-softdevice", features = [
+  "critical-section-impl",
+  "s140",
+  "nrf52840",
+] }
+
+cortex-m = { version = "0.7.7" }
+cortex-m-rt = { version = "0.7.3" }
+
+once_cell = { version = "1.19.0", default-features = false, features = [
+  "atomic-polyfill",
+] }
+embedded-alloc = { version = "0.6.0", optional = true }
+static_cell = "2.1.0"
+log = { version = "0.4.25", optional = true }
+defmt = { version = "0.3.10", optional = true }
+
+[patch.crates-io]
+rktk = { path = "../../rktk/lib/rktk" }
+rktk-drivers-common = { path = "../../rktk/lib/rktk-drivers-common/" }
+rktk-drivers-nrf = { path = "../../rktk/lib/rktk-drivers-nrf/" }
+rktk-log = { path = "../../rktk/lib/rktk-log" }
+
+[features]
+default = ["defmt", "rrp", "alloc"]
+
+alloc = ["dep:embedded-alloc", "rktk/alloc"]
+right = []
+left = []
+ble-split-master = []
+ble-split-slave = []
+force-slave = []
+
+rrp = ["rktk/rrp"]
+
+defmt = [
+  "dep:defmt",
+  "rktk/defmt",
+  "rktk-log/defmt",
+  "rktk-drivers-common/defmt-usb",
+  "rktk-drivers-common/defmt-timestamp",
+  "rktk-drivers-nrf/defmt",
+]
+log = [
+  "dep:log",
+  "rktk/log",
+  "rktk-log/log",
+  "rktk-drivers-common/log",
+  "rktk-drivers-nrf/log",
+]

@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "DEFMT_LOG": "info"
+    }
+  },
+  "tasks": [
+    {
+      "label": "deploy-right",
+      "type": "shell",
+      "command": "cargo run --release --features right"
+    },
+    {
+      "label": "deploy-left",
+      "type": "shell",
+      "command": "cargo run --release --features left"
+    },
+    {
+      "label": "deploy-left-slave",
+      "type": "shell",
+      "command": "cargo run --release --features left,force-slave"
+    },
+    {
+      "label": "deploy-ble-left-slave",
+      "type": "shell",
+      "command": "cargo run --release --features left,ble-split-slave"
+    },
+    {
+      "label": "deploy-ble-right-master",
+      "type": "shell",
+      "command": "cargo run --release --features right,ble-split-master"
+    }
+  ]
+}
