@@ -25,12 +25,14 @@ use rktk::{
     drivers::{dummy, interface::keyscan::KeyscanDriver, Drivers},
     hooks::{empty_hooks, interface::master::KeyChangeEvent},
     interface::Hand,
+    singleton,
 };
 use rktk_drivers_common::{
     debounce::EagerDebounceDriver,
+    trouble::reporter::TroubleReporterBuilder,
     usb::{CommonUsbDriverBuilder, UsbDriverConfig, UsbOpts},
 };
-use rktk_drivers_nrf::system::NrfSystemDriver;
+use rktk_drivers_nrf::{init_sdc, system::NrfSystemDriver};
 
 #[cfg(feature = "sd")]
 use nrf_softdevice as _;
@@ -45,6 +47,12 @@ bind_interrupts!(pub struct Irqs {
     SPI2 => embassy_nrf::spim::InterruptHandler<SPI2>;
     TWISPI0 => embassy_nrf::twim::InterruptHandler<embassy_nrf::peripherals::TWISPI0>;
     UARTE0 => embassy_nrf::buffered_uarte::InterruptHandler<embassy_nrf::peripherals::UARTE0>;
+    RNG => embassy_nrf::rng::InterruptHandler<embassy_nrf::peripherals::RNG>;
+    EGU0_SWI0 => nrf_sdc::mpsl::LowPrioInterruptHandler;
+    CLOCK_POWER => nrf_sdc::mpsl::ClockInterruptHandler;
+    RADIO => nrf_sdc::mpsl::HighPrioInterruptHandler;
+    TIMER0 => nrf_sdc::mpsl::HighPrioInterruptHandler;
+    RTC0 => nrf_sdc::mpsl::HighPrioInterruptHandler;
 });
 
 static SOFTWARE_VBUS: OnceCell<SoftwareVbusDetect> = OnceCell::new();
@@ -117,7 +125,19 @@ async fn main(_spawner: Spawner) {
             Some(CommonUsbDriverBuilder::new(opts))
         };
 
-        // let storage = rktk_drivers_nrf::softdevice::flash::create_storage_driver(flash, &cache);
+        let rng = singleton!(
+            embassy_nrf::rng::Rng::new(p.RNG, Irqs),
+            embassy_nrf::rng::Rng<embassy_nrf::peripherals::RNG>
+        );
+        init_sdc!(
+            sdc, Irqs, rng,
+            mpsl: (p.RTC0, p.TIMER0, p.TEMP, p.PPI_CH19, p.PPI_CH30, p.PPI_CH31),
+            sdc: (p.PPI_CH17, p.PPI_CH18, p.PPI_CH20, p.PPI_CH21, p.PPI_CH22, p.PPI_CH23, p.PPI_CH24, p.PPI_CH25, p.PPI_CH26, p.PPI_CH27, p.PPI_CH28, p.PPI_CH29),
+            mtu: 27,
+            txq: 3,
+            rxq: 3
+        );
+        let ble = TroubleReporterBuilder::<_, 5, 5, 27>::new(sdc.unwrap());
 
         let vcc_cutoff = (
             Output::new(p.P0_13, Level::High, OutputDrive::Standard),
@@ -133,7 +153,7 @@ async fn main(_spawner: Spawner) {
             split: dummy::split(),
             rgb: dummy::rgb(),
             storage: dummy::storage(),
-            ble_builder: dummy::ble_builder(),
+            ble_builder: Some(ble),
             debounce: Some(EagerDebounceDriver::new(
                 embassy_time::Duration::from_millis(10),
                 true,

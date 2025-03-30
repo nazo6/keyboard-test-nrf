@@ -6,10 +6,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rktk-drivers-nrf = { version = "0.1.0", features = ["nightly"] }
-rktk-drivers-common = { version = "0.1.0" }
+rktk-drivers-nrf = { version = "0.1.0", features = ["nightly", "sdc"] }
+rktk-drivers-common = { version = "0.1.0", features = ["reporter-trouble"] }
 rktk = { version = "0.1.0" }
 rktk-log = { version = "0.1.0" }
+
+nrf-sdc = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "e5dbb34d5509934490bf94e6eb466d7da8ce9ef4", version = "0.1.0", default-features = false }
 
 embassy-embedded-hal = "0.3.0"
 embassy-time = "0.4.0"
@@ -52,7 +54,7 @@ rktk-drivers-nrf = { path = "../../rktk/lib/rktk-drivers-nrf/" }
 rktk-log = { path = "../../rktk/lib/rktk-log" }
 
 [features]
-default = ["defmt", "rrp", "alloc", "nosd"]
+default = ["defmt", "rrp", "alloc", "nrf-sdc/nrf52840"]
 
 alloc = ["dep:embedded-alloc", "rktk/alloc"]
 
@@ -81,4 +83,3 @@ sd = [
   "rktk-drivers-nrf/softdevice",
   "rktk-drivers-nrf/softdevice-ble",
 ]
-nosd = ["cortex-m/critical-section-single-core"]

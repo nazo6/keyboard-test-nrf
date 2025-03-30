@@ -258,7 +258,6 @@ checksum = "8ec610d8f49840a5b376c69663b6369e71f4b34484b9b2eb29fb918d92516cb9"
 dependencies = [
  "bare-metal",
  "bitfield 0.13.2",
- "critical-section",
  "embedded-hal 0.2.7",
  "volatile-register",
 ]
@@ -1017,6 +1016,7 @@ dependencies = [
  "embassy-time",
  "embedded-alloc",
  "log",
+ "nrf-sdc",
  "nrf-softdevice",
  "once_cell",
  "panic-probe",
@@ -1590,6 +1590,8 @@ dependencies = [
  "rktk-log",
  "sequential-storage",
  "ssd1306",
+ "ssmarshal",
+ "static_cell",
  "thiserror",
  "trouble-host",
  "usbd-hid",
