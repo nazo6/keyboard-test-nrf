@@ -47,6 +47,8 @@ defmt = { version = "0.3.10", optional = true }
 defmt-rtt = { version = "0.4.2", optional = true }
 panic-probe = { version = "0.3.2", optional = true }
 
+rand_chacha = { version = "0.3", default-features = false }
+
 [patch.crates-io]
 rktk = { path = "../../rktk/lib/rktk" }
 rktk-drivers-common = { path = "../../rktk/lib/rktk-drivers-common/" }

@@ -21,6 +21,7 @@ use embassy_nrf::{
     Peripherals,
 };
 use once_cell::sync::OnceCell;
+use rand_chacha::{rand_core::SeedableRng as _, ChaCha12Rng};
 use rktk::{
     drivers::{dummy, interface::keyscan::KeyscanDriver, Drivers},
     hooks::{empty_hooks, interface::master::KeyChangeEvent},
@@ -29,8 +30,7 @@ use rktk::{
 };
 use rktk_drivers_common::{
     debounce::EagerDebounceDriver,
-    trouble::reporter::TroubleReporterBuilder,
-    usb::{CommonUsbDriverBuilder, UsbDriverConfig, UsbOpts},
+    trouble::reporter::{TroubleReporterBuilder, TroubleReporterConfig},
 };
 use rktk_drivers_nrf::{init_sdc, system::NrfSystemDriver};
 
@@ -59,8 +59,18 @@ static SOFTWARE_VBUS: OnceCell<SoftwareVbusDetect> = OnceCell::new();
 
 pub struct DummyKeyscanDriver;
 impl KeyscanDriver for DummyKeyscanDriver {
-    async fn scan(&mut self, _cb: impl FnMut(KeyChangeEvent)) {
-        let _: () = core::future::pending().await;
+    async fn scan(&mut self, mut cb: impl FnMut(KeyChangeEvent)) {
+        embassy_time::Timer::after_secs(1).await;
+        cb(KeyChangeEvent {
+            col: 0,
+            row: 0,
+            pressed: true,
+        });
+        cb(KeyChangeEvent {
+            col: 0,
+            row: 0,
+            pressed: false,
+        });
     }
 }
 
@@ -77,10 +87,14 @@ fn init() -> Peripherals {
         embassy_nrf::init(config)
     };
 
-    interrupt::USBD.set_priority(Priority::P2);
-    interrupt::SPI2.set_priority(Priority::P2);
-    interrupt::SPIM3.set_priority(Priority::P2);
-    interrupt::UARTE0.set_priority(Priority::P2);
+    interrupt::RADIO.set_priority(Priority::P0);
+    interrupt::TIMER0.set_priority(Priority::P0);
+    interrupt::RTC0.set_priority(Priority::P0);
+
+    // interrupt::USBD.set_priority(Priority::P2);
+    // interrupt::SPI2.set_priority(Priority::P2);
+    // interrupt::SPIM3.set_priority(Priority::P2);
+    // interrupt::UARTE0.set_priority(Priority::P2);
 
     #[cfg(feature = "alloc")]
     {
@@ -99,68 +113,62 @@ async fn main(_spawner: Spawner) {
 
     rktk_log::info!("Hello world!");
 
-    let drivers = {
-        let usb = {
-            let vbus = SOFTWARE_VBUS.get_or_init(|| SoftwareVbusDetect::new(true, true));
-            let driver = embassy_nrf::usb::Driver::new(p.USBD, Irqs, vbus);
-            let opts = UsbOpts {
-                config: {
-                    let mut config = UsbDriverConfig::new(0xc0de, 0xcafe);
+    let mut rng = singleton!(
+        embassy_nrf::rng::Rng::new(p.RNG, Irqs),
+        embassy_nrf::rng::Rng<embassy_nrf::peripherals::RNG>
+    );
+    let rng_2 = singleton!(ChaCha12Rng::from_rng(&mut rng).unwrap(), ChaCha12Rng);
+    init_sdc!(
+        sdc, Irqs, rng,
+        mpsl: (p.RTC0, p.TIMER0, p.TEMP, p.PPI_CH19, p.PPI_CH30, p.PPI_CH31),
+        sdc: (p.PPI_CH17, p.PPI_CH18, p.PPI_CH20, p.PPI_CH21, p.PPI_CH22, p.PPI_CH23, p.PPI_CH24, p.PPI_CH25, p.PPI_CH26, p.PPI_CH27, p.PPI_CH28, p.PPI_CH29),
+        mtu: 255,
+        txq: 3,
+        rxq: 3
+    );
 
-                    config.manufacturer = Some("nazo6");
-                    config.product = Some("negL");
-                    config.serial_number = Some("12345678");
-                    config.max_power = 100;
-                    config.max_packet_size_0 = 64;
-                    config.supports_remote_wakeup = true;
-
-                    config
-                },
-                mouse_poll_interval: 1,
-                kb_poll_interval: 5,
-                driver,
-                #[cfg(feature = "defmt-usb")]
-                defmt_usb_use_dtr: true,
-            };
-            Some(CommonUsbDriverBuilder::new(opts))
-        };
-
-        let rng = singleton!(
-            embassy_nrf::rng::Rng::new(p.RNG, Irqs),
-            embassy_nrf::rng::Rng<embassy_nrf::peripherals::RNG>
-        );
-        init_sdc!(
-            sdc, Irqs, rng,
-            mpsl: (p.RTC0, p.TIMER0, p.TEMP, p.PPI_CH19, p.PPI_CH30, p.PPI_CH31),
-            sdc: (p.PPI_CH17, p.PPI_CH18, p.PPI_CH20, p.PPI_CH21, p.PPI_CH22, p.PPI_CH23, p.PPI_CH24, p.PPI_CH25, p.PPI_CH26, p.PPI_CH27, p.PPI_CH28, p.PPI_CH29),
-            mtu: 27,
-            txq: 3,
-            rxq: 3
-        );
-        let ble = TroubleReporterBuilder::<_, 5, 5, 27>::new(sdc.unwrap());
-
-        let vcc_cutoff = (
-            Output::new(p.P0_13, Level::High, OutputDrive::Standard),
-            Level::Low,
-        );
-
-        Drivers {
-            keyscan: DummyKeyscanDriver,
-            system: NrfSystemDriver::new(Some(vcc_cutoff)),
-            mouse: dummy::mouse(),
-            usb_builder: usb,
-            display: dummy::display(),
-            split: dummy::split(),
-            rgb: dummy::rgb(),
-            storage: dummy::storage(),
-            ble_builder: Some(ble),
-            debounce: Some(EagerDebounceDriver::new(
-                embassy_time::Duration::from_millis(10),
-                true,
-            )),
-            encoder: dummy::encoder(),
+    let sdc = match sdc {
+        Ok(s) => s,
+        Err(e) => {
+            rktk_log::error!("Failed to create SDC, {:?}", e);
+            return;
         }
     };
+
+    let ble = TroubleReporterBuilder::<_, _, 1, 5, 256>::new(
+        sdc,
+        rng_2,
+        TroubleReporterConfig {
+            advertise_name: "Trouble test",
+            peripheral_config: None,
+        },
+    );
+
+    let vcc_cutoff = (
+        Output::new(p.P0_13, Level::High, OutputDrive::Standard),
+        Level::Low,
+    );
+
+    rktk_log::info!("Hello world!3");
+
+    let drivers = Drivers {
+        keyscan: DummyKeyscanDriver,
+        system: NrfSystemDriver::new(Some(vcc_cutoff)),
+        mouse: dummy::mouse(),
+        usb_builder: dummy::usb_builder(),
+        display: dummy::display(),
+        split: dummy::split(),
+        rgb: dummy::rgb(),
+        storage: dummy::storage(),
+        ble_builder: Some(ble),
+        debounce: Some(EagerDebounceDriver::new(
+            embassy_time::Duration::from_millis(10),
+            true,
+        )),
+        encoder: dummy::encoder(),
+    };
+
+    rktk_log::info!("Starting");
 
     rktk::task::start(
         drivers,

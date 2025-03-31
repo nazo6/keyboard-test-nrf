@@ -15,6 +15,11 @@
       "label": "deploy probe",
       "type": "shell",
       "command": "cargo run-probe --release"
+    },
+    {
+      "label": "attach",
+      "type": "shell",
+      "command": "probe-rs attach ./target/thumbv7em-none-eabihf/release/keyboard-test-nrf"
     }
   ]
 }
